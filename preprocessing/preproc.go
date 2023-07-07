@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/nfnt/resize"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
@@ -10,8 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-
-	"github.com/nfnt/resize"
 )
 
 type Params struct {
@@ -30,11 +29,11 @@ var lbphParams = Params{
 
 type Data struct {
 	Images     []image.Image
-	Labels     []int
+	Labels     []float64
 	Histograms [][]float64
 }
 
-func readImages(imgLocation string, label int) ([]image.Image, []int, error) {
+func readImages(imgLocation string, label float64) ([]image.Image, []float64, error) {
 	var imgPaths []string
 	err := filepath.Walk(imgLocation, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -49,7 +48,7 @@ func readImages(imgLocation string, label int) ([]image.Image, []int, error) {
 		return nil, nil, err
 	}
 	var images []image.Image
-	var labels []int
+	var labels []float64
 	for _, imgPath := range imgPaths {
 		file, err := os.Open(imgPath)
 		if err != nil {
@@ -80,7 +79,7 @@ func getBinaryString(value, threshold int) string {
 	}
 }
 
-func LBPHistograms(images []image.Image, labels []int) (*Data, error) {
+func LBPHistograms(images []image.Image, labels []float64) (*Data, error) {
 
 	// Check if the slices are not empty.
 	if len(images) == 0 || len(labels) == 0 {
@@ -295,7 +294,7 @@ func shuffleData(data Data, seed int) Data {
 	rand.Seed(int64(seed))
 	shuffledData := Data{
 		Images:     make([]image.Image, len(data.Images)),
-		Labels:     make([]int, len(data.Labels)),
+		Labels:     make([]float64, len(data.Labels)),
 		Histograms: make([][]float64, len(data.Histograms)),
 	}
 
@@ -318,13 +317,13 @@ func splitData(data Data, splitRatio float64, seed int) (Data, Data) {
 
 	trainData := Data{
 		Images:     make([]image.Image, numTrain),
-		Labels:     make([]int, numTrain),
+		Labels:     make([]float64, numTrain),
 		Histograms: make([][]float64, numTrain),
 	}
 
 	valData := Data{
 		Images:     make([]image.Image, numSamples-numTrain),
-		Labels:     make([]int, numSamples-numTrain),
+		Labels:     make([]float64, numSamples-numTrain),
 		Histograms: make([][]float64, numSamples-numTrain),
 	}
 
@@ -365,7 +364,7 @@ func PreprocessImages() (Data, Data) {
 
 	trainData, validationData := splitData(*preprocessedAllImages, 0.7, 42)
 
-	fmt.Println(len(trainData.Histograms))
+	fmt.Println(len(trainData.Histograms[0]))
 	fmt.Println(len(validationData.Histograms))
 
 	return trainData, validationData
@@ -373,14 +372,14 @@ func PreprocessImages() (Data, Data) {
 
 func main() {
 	normalLungsImgLocation := "data\\normal"
-	normalLungsImages, normalLabels, err := readImages(normalLungsImgLocation, 0)
+	normalLungsImages, normalLabels, err := readImages(normalLungsImgLocation, 0.0)
 	if err != nil {
 		fmt.Println("Error loading normal lung images:", err)
 		return
 	}
 
 	covidLungsImgLocation := "data\\covid"
-	covidLungsImages, covidLabels, err := readImages(covidLungsImgLocation, 1)
+	covidLungsImages, covidLabels, err := readImages(covidLungsImgLocation, 1.0)
 	if err != nil {
 		fmt.Println("Error loading covid lung images: ", err)
 		return
@@ -396,6 +395,37 @@ func main() {
 
 	trainData, validationData := splitData(*preprocessedAllImages, 0.7, 42)
 
-	fmt.Println(len(trainData.Histograms))
+	fmt.Println(len(trainData.Histograms[0]))
 	fmt.Println(len(validationData.Histograms))
+
+	//con := nn.Config{
+	//	Epochs:    25,
+	//	Eta:       0.3,
+	//	BatchSize: 32,
+	//}
+	//
+	//arch := []int{len(trainData.Histograms[0]), 15, 8, 1}
+	//n := nn.New(con, arch...)
+	//
+	//rows, cols := len(trainData.Histograms), len(trainData.Histograms[0])
+	//data := make([]float64, rows*cols)
+	//for i, row := range trainData.Histograms {
+	//	copy(data[i*cols:(i+1)*cols], row)
+	//}
+	//dense := mat.NewDense(rows, cols, data)
+	//denseY := mat.NewDense(rows, 1, trainData.Labels)
+	//
+	//dataev := make([]float64, len(validationData.Histograms)*cols)
+	//for i, row := range validationData.Histograms {
+	//	copy(dataev[i*cols:(i+1)*cols], row)
+	//}
+	//denseev := mat.NewDense(len(validationData.Histograms), cols, dataev)
+	//denseYev := mat.NewDense(len(validationData.Histograms), 1, validationData.Labels)
+	//
+	//n.Train(dense, denseY)
+	//
+	//accuracy := n.Evaluate(denseev, denseYev)
+	//
+	//fmt.Printf("accuracy = %0.1f%%\n", accuracy)
+
 }
