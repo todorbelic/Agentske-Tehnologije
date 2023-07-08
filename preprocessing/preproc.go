@@ -1,4 +1,4 @@
-package main
+package preprocessing
 
 import (
 	"errors"
@@ -29,7 +29,6 @@ var lbphParams = Params{
 }
 
 type Data struct {
-	Images     []image.Image
 	Labels     []int
 	Histograms [][]float64
 }
@@ -113,7 +112,6 @@ func LBPHistograms(images []image.Image, labels []int) (*Data, error) {
 
 	// Store the current data that we are working on.
 	data := &Data{
-		Images:     images,
 		Labels:     labels,
 		Histograms: histograms,
 	}
@@ -294,14 +292,12 @@ func CalculateHistograms(pixels [][]uint64, gridX, gridY uint8, bins_per_sub_ima
 func shuffleData(data Data, seed int) Data {
 	rand.Seed(int64(seed))
 	shuffledData := Data{
-		Images:     make([]image.Image, len(data.Images)),
 		Labels:     make([]int, len(data.Labels)),
 		Histograms: make([][]float64, len(data.Histograms)),
 	}
 
-	perm := rand.Perm(len(data.Images))
+	perm := rand.Perm(len(data.Histograms))
 	for i, j := range perm {
-		shuffledData.Images[i] = data.Images[j]
 		shuffledData.Labels[i] = data.Labels[j]
 		shuffledData.Histograms[i] = data.Histograms[j]
 	}
@@ -313,29 +309,25 @@ func splitData(data Data, splitRatio float64, seed int) (Data, Data) {
 	// Shuffle the data first
 	shuffledData := shuffleData(data, seed)
 
-	numSamples := len(shuffledData.Images)
+	numSamples := len(shuffledData.Histograms)
 	numTrain := int(float64(numSamples) * splitRatio)
 
 	trainData := Data{
-		Images:     make([]image.Image, numTrain),
 		Labels:     make([]int, numTrain),
 		Histograms: make([][]float64, numTrain),
 	}
 
 	valData := Data{
-		Images:     make([]image.Image, numSamples-numTrain),
 		Labels:     make([]int, numSamples-numTrain),
 		Histograms: make([][]float64, numSamples-numTrain),
 	}
 
 	for i := 0; i < numTrain; i++ {
-		trainData.Images[i] = shuffledData.Images[i]
 		trainData.Labels[i] = shuffledData.Labels[i]
 		trainData.Histograms[i] = shuffledData.Histograms[i]
 	}
 
 	for i := numTrain; i < numSamples; i++ {
-		valData.Images[i-numTrain] = shuffledData.Images[i]
 		valData.Labels[i-numTrain] = shuffledData.Labels[i]
 		valData.Histograms[i-numTrain] = shuffledData.Histograms[i]
 	}
@@ -371,31 +363,31 @@ func PreprocessImages() (Data, Data) {
 	return trainData, validationData
 }
 
-func main() {
-	normalLungsImgLocation := "data\\normal"
-	normalLungsImages, normalLabels, err := readImages(normalLungsImgLocation, 0)
-	if err != nil {
-		fmt.Println("Error loading normal lung images:", err)
-		return
-	}
+// func main() {
+// 	normalLungsImgLocation := "data\\normal_read"
+// 	normalLungsImages, normalLabels, err := readImages(normalLungsImgLocation, 0)
+// 	if err != nil {
+// 		fmt.Println("Error loading normal lung images:", err)
+// 		return
+// 	}
 
-	covidLungsImgLocation := "data\\covid"
-	covidLungsImages, covidLabels, err := readImages(covidLungsImgLocation, 1)
-	if err != nil {
-		fmt.Println("Error loading covid lung images: ", err)
-		return
-	}
+// 	covidLungsImgLocation := "data\\covid_read"
+// 	covidLungsImages, covidLabels, err := readImages(covidLungsImgLocation, 1)
+// 	if err != nil {
+// 		fmt.Println("Error loading covid lung images: ", err)
+// 		return
+// 	}
 
-	allImages, allLabels := append(normalLungsImages, covidLungsImages...), append(normalLabels, covidLabels...)
+// 	allImages, allLabels := append(normalLungsImages, covidLungsImages...), append(normalLabels, covidLabels...)
 
-	preprocessedAllImages, err := LBPHistograms(allImages, allLabels)
-	if err != nil {
-		fmt.Println("Error preprocessing images: ", err)
-		return
-	}
+// 	preprocessedAllImages, err := LBPHistograms(allImages, allLabels)
+// 	if err != nil {
+// 		fmt.Println("Error preprocessing images: ", err)
+// 		return
+// 	}
 
-	trainData, validationData := splitData(*preprocessedAllImages, 0.7, 42)
+// 	trainData, validationData := splitData(*preprocessedAllImages, 0.7, 42)
 
-	fmt.Println(len(trainData.Histograms))
-	fmt.Println(len(validationData.Histograms))
-}
+// 	fmt.Println(len(trainData.Histograms))
+// 	fmt.Println(len(validationData.Histograms))
+// }

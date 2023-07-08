@@ -1,0 +1,22 @@
+syntax = "proto3";
+package messages;
+option go_package = "agentske/proto";
+import "actor.proto";
+
+message Data {
+    repeated int32 labels = 2;
+    repeated Histogram histograms = 3;
+}
+
+message Histogram {
+    repeated double values = 1;
+}
+
+message DataSets{
+    Data Training = 1;
+    Data Validation = 2;
+}
+
+message ActivatePreproc{
+    actor.PID Sender = 1; 
+}
