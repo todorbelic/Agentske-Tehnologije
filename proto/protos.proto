@@ -1,0 +1,42 @@
+syntax = "proto3";
+package messages;
+option go_package = "agentske/proto";
+import "actor.proto";
+
+message Data {
+    repeated double labels = 2;
+    repeated Histogram histograms = 3;
+}
+
+message Histogram {
+    repeated double values = 1;
+}
+
+message DataSets{
+    Data Training = 1;
+    Data Validation = 2;
+}
+
+message ActivatePreproc{
+    actor.PID Sender = 1; 
+}
+
+
+message ActivateLocalTraining{
+    actor.PID Sender = 1;
+    actor.PID AggregationActor = 2;
+}
+
+message GetTrainingActor{
+}
+
+message GetGlobalWeights{
+}
+
+message GlobalWeights{
+    string string = 1;
+}
+
+message GetAggregationActor {
+
+}

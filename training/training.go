@@ -1,10 +1,14 @@
 package training
 
 import (
+	messages "agentske/proto"
+	"fmt"
+	"github.com/asynkron/protoactor-go/actor"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"math"
 	"math/rand"
+	"time"
 )
 
 type Config struct {
@@ -129,7 +133,14 @@ func (n *MLP) forward(x mat.Matrix) (as, zs []mat.Matrix) {
 
 }
 
-func (n *MLP) backward(x, y mat.Matrix) {
+func (n *MLP) backward(x, y mat.Matrix, context actor.Context, coordinationActor *actor.PID) {
+
+	//mozda treba da se poveca vreme odziva
+	fmt.Println(coordinationActor)
+	aggregationActor, _ := context.RequestFuture(coordinationActor, &messages.GetAggregationActor{}, 1*time.Second).Result()
+	fmt.Println(aggregationActor)
+	globalWeights, _ := context.RequestFuture(aggregationActor.(*actor.PID), &messages.GetGlobalWeights{}, 1*time.Second).Result()
+	fmt.Println(globalWeights)
 
 	// get activations
 	as, zs := n.forward(x)
@@ -231,7 +242,7 @@ func (n *MLP) Predict(x mat.Matrix) mat.Matrix {
 	return as[len(as)-1]
 }
 
-func (n *MLP) Train(x, y *mat.Dense) {
+func (n *MLP) Train(x, y *mat.Dense, context actor.Context, coordinationActor *actor.PID) {
 
 	r, cx := x.Dims()
 	_, cy := y.Dims()
@@ -248,7 +259,7 @@ func (n *MLP) Train(x, y *mat.Dense) {
 			_x := x.Slice(i, k, 0, cx)
 			_y := y.Slice(i, k, 0, cy)
 
-			n.backward(_x, _y)
+			n.backward(_x, _y, context, coordinationActor)
 		}
 	}
 }
@@ -284,4 +295,18 @@ func prediction(vs []float64) float64 {
 	} else {
 		return 1.0
 	}
+}
+
+func StartTraining(X, Y, Xv, Yv *mat.Dense, context actor.Context, coordinationActor *actor.PID) {
+	con := Config{
+		Epochs:    25,
+		Eta:       0.3,
+		BatchSize: 32,
+	}
+	_, cols := X.Dims()
+	arch := []int{cols, 15, 8, 1}
+	n := New(con, arch...)
+	n.Train(X, Y, context, coordinationActor)
+	accuracy := n.Evaluate(Xv, Yv)
+	fmt.Printf("accuracy = %0.1f%%\n", accuracy)
 }
