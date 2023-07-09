@@ -2,13 +2,16 @@ package training
 
 import (
 	messages "agentske/proto"
+	"encoding/json"
 	"fmt"
-	"github.com/asynkron/protoactor-go/actor"
-	"gonum.org/v1/gonum/floats"
-	"gonum.org/v1/gonum/mat"
+	"io/ioutil"
 	"math"
 	"math/rand"
 	"time"
+
+	"github.com/asynkron/protoactor-go/actor"
+	"gonum.org/v1/gonum/floats"
+	"gonum.org/v1/gonum/mat"
 )
 
 type Config struct {
@@ -23,6 +26,14 @@ type MLP struct {
 	biases    []*mat.Dense
 	weights   []*mat.Dense
 	config    Config
+}
+
+func (n *MLP) GetWeights() []*mat.Dense {
+	return n.weights
+}
+
+func (n *MLP) GetBiases() []*mat.Dense {
+	return n.biases
 }
 
 func New(c Config, sizes ...int) *MLP {
@@ -63,6 +74,74 @@ func New(c Config, sizes ...int) *MLP {
 		weights:   ws,
 		config:    c,
 	}
+}
+
+func (n *MLP) WriteWeightsToFile(filename string) error {
+	// Create a struct to hold the weights
+	weightsData := struct {
+		Biases  [][]float64 `json:"biases"`
+		Weights [][]float64 `json:"weights"`
+	}{
+		Biases:  make([][]float64, len(n.biases)),
+		Weights: make([][]float64, len(n.weights)),
+	}
+
+	// Convert biases and weights to slices of slices of float64
+	for i := 0; i < len(n.biases); i++ {
+		weightsData.Biases[i] = n.biases[i].RawMatrix().Data
+		weightsData.Weights[i] = n.weights[i].RawMatrix().Data
+	}
+
+	// Serialize the weights data to JSON
+	jsonData, err := json.MarshalIndent(weightsData, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	// Write the JSON data to the file
+	err = ioutil.WriteFile(filename, jsonData, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (n *MLP) ReadWeightsFromFile(filename string) error {
+	// Read the JSON data from the file
+	jsonData, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+
+	// Create a struct to hold the weights data
+	weightsData := struct {
+		Biases  [][]float64 `json:"biases"`
+		Weights [][]float64 `json:"weights"`
+	}{}
+
+	// Unmarshal the JSON data into the weights data struct
+	err = json.Unmarshal(jsonData, &weightsData)
+	if err != nil {
+		return err
+	}
+
+	// Convert the weights data into biases and weights matrices
+	n.biases = make([]*mat.Dense, len(weightsData.Biases))
+	n.weights = make([]*mat.Dense, len(weightsData.Weights))
+
+	for i := 0; i < len(weightsData.Biases); i++ {
+		biasesData := weightsData.Biases[i]
+		weightsData := weightsData.Weights[i]
+
+		biases := mat.NewDense(len(biasesData), 1, biasesData)
+		weights := mat.NewDense(len(weightsData)/len(biasesData), len(biasesData), weightsData)
+
+		n.biases[i] = biases
+		n.weights[i] = weights
+	}
+
+	return nil
 }
 
 func sumCols(m *mat.Dense) *mat.Dense {
@@ -133,14 +212,34 @@ func (n *MLP) forward(x mat.Matrix) (as, zs []mat.Matrix) {
 
 }
 
+func (n *MLP) ConvertFromGlobalWeights(globalWeights *messages.GlobalWeights) {
+	// Clear existing biases and weights
+	n.biases = []*mat.Dense{}
+	n.weights = []*mat.Dense{}
+
+	// Convert biases
+	for _, biasesData := range globalWeights.Biases {
+		biases := mat.NewDense(len(biasesData.Data), 1, biasesData.Data)
+		n.biases = append(n.biases, biases)
+	}
+
+	// Convert weights
+	for _, weightsData := range globalWeights.Weights {
+		weights := mat.NewDense(len(weightsData.Data)/n.sizes[0], n.sizes[0], weightsData.Data)
+		n.weights = append(n.weights, weights)
+	}
+}
+
 func (n *MLP) backward(x, y mat.Matrix, context actor.Context, coordinationActor *actor.PID) {
 
 	//mozda treba da se poveca vreme odziva
 	fmt.Println(coordinationActor)
-	aggregationActor, _ := context.RequestFuture(coordinationActor, &messages.GetAggregationActor{}, 1*time.Second).Result()
-	fmt.Println(aggregationActor)
-	globalWeights, _ := context.RequestFuture(aggregationActor.(*actor.PID), &messages.GetGlobalWeights{}, 1*time.Second).Result()
-	fmt.Println(globalWeights)
+	aggregationActor, _ := context.RequestFuture(coordinationActor, &messages.GetAggregationActor{}, 5*time.Second).Result()
+	fmt.Println("Aggregation: ", aggregationActor)
+	globalWeightsResult, _ := context.RequestFuture(aggregationActor.(*actor.PID), &messages.GetGlobalWeights{}, 10*time.Second).Result()
+	globalWeights := globalWeightsResult.(*messages.GlobalWeights)
+	fmt.Println("Global:", globalWeights)
+	// n.ConvertFromGlobalWeights(globalWeights)
 
 	// get activations
 	as, zs := n.forward(x)
@@ -201,6 +300,10 @@ func (n *MLP) backward(x, y mat.Matrix, context actor.Context, coordinationActor
 
 	N, _ := x.Dims()
 
+	// gradientsMsg := &messages.GradientUpdate{
+	// Weights: make([]*messages.WeightLayer, len(n.weights)),
+	// }
+
 	weights := make([]*mat.Dense, len(n.weights))
 	biases := make([]*mat.Dense, len(n.biases))
 
@@ -229,10 +332,19 @@ func (n *MLP) backward(x, y mat.Matrix, context actor.Context, coordinationActor
 		weights[i] = wprime
 		biases[i] = bprime
 
+		// weightLayer := &messages.WeightLayer{
+		// 	Weights: wprime.RawMatrix().Data,
+		// 	Biases:  bprime.RawMatrix().Data,
+		// }
+
+		// gradientsMsg.Weights[i] = weightLayer
+
 	}
 
 	n.weights = weights
 	n.biases = biases
+
+	// context.Send(aggregationActor.(*actor.PID), gradientsMsg)
 }
 
 func (n *MLP) Predict(x mat.Matrix) mat.Matrix {
@@ -306,6 +418,8 @@ func StartTraining(X, Y, Xv, Yv *mat.Dense, context actor.Context, coordinationA
 	_, cols := X.Dims()
 	arch := []int{cols, 15, 8, 1}
 	n := New(con, arch...)
+	n.WriteWeightsToFile("weights.json")
+	fmt.Println("Wrote")
 	n.Train(X, Y, context, coordinationActor)
 	accuracy := n.Evaluate(Xv, Yv)
 	fmt.Printf("accuracy = %0.1f%%\n", accuracy)

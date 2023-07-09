@@ -3,7 +3,6 @@ package preprocessing
 import (
 	"errors"
 	"fmt"
-	"github.com/nfnt/resize"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
@@ -11,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/nfnt/resize"
 )
 
 type Params struct {
@@ -335,13 +336,13 @@ func splitData(data Data, splitRatio float64, seed int) (Data, Data) {
 }
 
 func PreprocessImages() (Data, Data) {
-	normalLungsImgLocation := "data\\normal"
+	normalLungsImgLocation := "data\\normal_read"
 	normalLungsImages, normalLabels, err := readImages(normalLungsImgLocation, 0.0)
 	if err != nil {
 		fmt.Println("Error loading normal lung images:", err)
 	}
 
-	covidLungsImgLocation := "data\\covid"
+	covidLungsImgLocation := "data\\covid_read"
 	covidLungsImages, covidLabels, err := readImages(covidLungsImgLocation, 1.0)
 	if err != nil {
 		fmt.Println("Error loading covid lung images: ", err)

@@ -5,12 +5,13 @@ import (
 	messages "agentske/proto"
 	nn "agentske/training"
 	"fmt"
+	"log"
+	"time"
+
 	console "github.com/asynkron/goconsole"
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
 	"gonum.org/v1/gonum/mat"
-	"log"
-	"time"
 )
 
 type PreprocessingActor struct {
@@ -79,6 +80,7 @@ func (state *TrainingActor) Receive(context actor.Context) {
 		state.coordinationActor = context.Parent()
 		X, Y, _ := getTrainingDataFromProto(msg.Training)
 		Xv, Yv, _ := getTrainingDataFromProto(msg.Validation)
+		fmt.Println(X.Dims())
 		nn.StartTraining(X, Y, Xv, Yv, context, state.coordinationActor)
 	}
 }

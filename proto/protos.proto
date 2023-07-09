@@ -34,9 +34,31 @@ message GetGlobalWeights{
 }
 
 message GlobalWeights{
+    repeated Biases biases = 1;
+    repeated Weights weights = 2;
+}
+
+message GlobalWeightsTest{
     string string = 1;
+}
+
+message Biases{
+    repeated double data = 1;
+}
+
+message Weights{
+    repeated double data = 1;
 }
 
 message GetAggregationActor {
 
+}
+
+message GradientUpdate {
+    repeated WeightLayer weights = 1;
+}
+
+message WeightLayer {
+    repeated double weights = 1;
+    repeated double biases = 2;
 }
