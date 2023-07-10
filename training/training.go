@@ -3,12 +3,13 @@ package training
 import (
 	messages "agentske/proto"
 	"fmt"
-	"github.com/asynkron/protoactor-go/actor"
-	"gonum.org/v1/gonum/floats"
-	"gonum.org/v1/gonum/mat"
 	"math"
 	"math/rand"
 	"time"
+
+	"github.com/asynkron/protoactor-go/actor"
+	"gonum.org/v1/gonum/floats"
+	"gonum.org/v1/gonum/mat"
 )
 
 type Config struct {
@@ -288,6 +289,37 @@ func (n *MLP) Evaluate(x, y mat.Matrix) float64 {
 	return accuracy * 100
 }
 
+func (n *MLP) EvaluateRecall(x, y mat.Matrix) float64 {
+	p := n.Predict(x)
+	N, _ := p.Dims()
+
+	var truePositives int
+	var actualPositives int
+
+	for i := 0; i < N; i++ {
+		ry := mat.Row(nil, i, y)
+		truth := ry[0]
+
+		rp := mat.Row(nil, i, p)
+		predicted := prediction(rp)
+
+		if predicted == 1.0 && truth == 1.0 {
+			truePositives++
+		}
+
+		if truth == 1.0 {
+			actualPositives++
+		}
+	}
+
+	if actualPositives == 0 {
+		return 0.0
+	}
+
+	recall := float64(truePositives) / float64(actualPositives)
+	return recall * 100
+}
+
 // get prediction as max prob in row
 func prediction(vs []float64) float64 {
 	if vs[0] < 0.5 {
@@ -295,6 +327,18 @@ func prediction(vs []float64) float64 {
 	} else {
 		return 1.0
 	}
+}
+
+func EvaluateF1Score(n *MLP, x, y mat.Matrix) float64 {
+	precision := n.Evaluate(x, y)
+	recall := n.EvaluateRecall(x, y)
+
+	if precision+recall == 0.0 {
+		return 0.0
+	}
+
+	f1Score := 2 * (precision * recall) / (precision + recall)
+	return f1Score
 }
 
 func StartTraining(X, Y, Xv, Yv *mat.Dense, context actor.Context, coordinationActor *actor.PID) {
@@ -308,5 +352,7 @@ func StartTraining(X, Y, Xv, Yv *mat.Dense, context actor.Context, coordinationA
 	n := New(con, arch...)
 	n.Train(X, Y, context, coordinationActor)
 	accuracy := n.Evaluate(Xv, Yv)
+	recall := n.EvaluateRecall(Xv, Yv)
 	fmt.Printf("accuracy = %0.1f%%\n", accuracy)
+	fmt.Printf("recall = %0.1f%%", recall)
 }
