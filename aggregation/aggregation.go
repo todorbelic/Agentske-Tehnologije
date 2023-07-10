@@ -8,6 +8,7 @@ import (
 	console "github.com/asynkron/goconsole"
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
+	"gonum.org/v1/gonum/mat"
 )
 
 type AggregationActor struct{}
@@ -15,16 +16,36 @@ type AggregationActor struct{}
 var n *training.MLP
 
 func (*AggregationActor) Receive(context actor.Context) {
-	switch context.Message().(type) {
+	switch msg := context.Message().(type) {
 	case *messages.GetGlobalWeights:
-		fmt.Println("stiglo")
 		globalWeights := ConvertToGlobalWeights()
-		fmt.Println(globalWeights)
-		context.Respond(&globalWeights)
-		context.Respond(&messages.GlobalWeightsTest{String_: "weights"})
+		context.Respond(globalWeights)
 	case *messages.GradientUpdate:
 		fmt.Println("update")
+		for i, weightLayer := range msg.Weights {
+			nw := mat.NewDense(len(weightLayer.Weights), 1, weightLayer.Weights)
+			nb := mat.NewDense(len(weightLayer.Biases), 1, weightLayer.Biases)
 
+			fmt.Println(nw.Dims())
+			fmt.Println(nb.Dims())
+			fmt.Println(i)
+			// alpha := n.config.Eta / float64(N)
+
+			// scalednw := new(mat.Dense)
+			// scalednw.Scale(alpha, nw)
+
+			// scalednb := new(mat.Dense)
+			// scalednb.Scale(alpha, nb)
+
+			// wprime := new(mat.Dense)
+			// wprime.Sub(n.weights[i], scalednw)
+
+			// bprime := new(mat.Dense)
+			// bprime.Sub(n.biases[i], scalednb)
+
+			// n.weights[i] = wprime
+			// n.biases[i] = bprime
+		}
 	}
 }
 

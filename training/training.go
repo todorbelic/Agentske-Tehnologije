@@ -219,15 +219,20 @@ func (n *MLP) ConvertFromGlobalWeights(globalWeights *messages.GlobalWeights) {
 
 	// Convert biases
 	for _, biasesData := range globalWeights.Biases {
-		biases := mat.NewDense(len(biasesData.Data), 1, biasesData.Data)
+		rows := len(biasesData.Data)
+		cols := 1
+		biases := mat.NewDense(rows, cols, biasesData.Data)
 		n.biases = append(n.biases, biases)
 	}
 
 	// Convert weights
-	for _, weightsData := range globalWeights.Weights {
-		weights := mat.NewDense(len(weightsData.Data)/n.sizes[0], n.sizes[0], weightsData.Data)
+	for i, weightsData := range globalWeights.Weights {
+		rows := n.sizes[i+1]
+		cols := n.sizes[i]
+		weights := mat.NewDense(cols, rows, weightsData.Data)
 		n.weights = append(n.weights, weights)
 	}
+
 }
 
 func (n *MLP) backward(x, y mat.Matrix, context actor.Context, coordinationActor *actor.PID) {
@@ -238,8 +243,8 @@ func (n *MLP) backward(x, y mat.Matrix, context actor.Context, coordinationActor
 	fmt.Println("Aggregation: ", aggregationActor)
 	globalWeightsResult, _ := context.RequestFuture(aggregationActor.(*actor.PID), &messages.GetGlobalWeights{}, 10*time.Second).Result()
 	globalWeights := globalWeightsResult.(*messages.GlobalWeights)
-	fmt.Println("Global:", globalWeights)
-	// n.ConvertFromGlobalWeights(globalWeights)
+	// fmt.Println("Global:", globalWeights)
+	n.ConvertFromGlobalWeights(globalWeights)
 
 	// get activations
 	as, zs := n.forward(x)
@@ -274,6 +279,10 @@ func (n *MLP) backward(x, y mat.Matrix, context actor.Context, coordinationActor
 	nw.Mul(a.T(), delta)
 	nws[len(nws)-1] = nw
 
+	gradientsMsg := &messages.GradientUpdate{
+		Weights: make([]*messages.WeightLayer, len(n.weights)),
+	}
+
 	// go back through layers
 	for i := n.numLayers - 2; i > 0; i-- {
 		z := zs[i-1] // -1?
@@ -296,13 +305,19 @@ func (n *MLP) backward(x, y mat.Matrix, context actor.Context, coordinationActor
 		nw := new(mat.Dense)
 		nw.Mul(a.T(), delta)
 		nws[i-1] = nw
+
+		r, c := nws[i-1].Dims()
+		fmt.Println("Nws: ", r, c)
+
+		weightLayer := &messages.WeightLayer{
+			Weights: nws[i-1].RawMatrix().Data,
+			Biases:  nbs[i-1].RawMatrix().Data,
+		}
+
+		gradientsMsg.Weights[i-1] = weightLayer
 	}
 
 	N, _ := x.Dims()
-
-	// gradientsMsg := &messages.GradientUpdate{
-	// Weights: make([]*messages.WeightLayer, len(n.weights)),
-	// }
 
 	weights := make([]*mat.Dense, len(n.weights))
 	biases := make([]*mat.Dense, len(n.biases))
@@ -332,19 +347,12 @@ func (n *MLP) backward(x, y mat.Matrix, context actor.Context, coordinationActor
 		weights[i] = wprime
 		biases[i] = bprime
 
-		// weightLayer := &messages.WeightLayer{
-		// 	Weights: wprime.RawMatrix().Data,
-		// 	Biases:  bprime.RawMatrix().Data,
-		// }
-
-		// gradientsMsg.Weights[i] = weightLayer
-
 	}
 
 	n.weights = weights
 	n.biases = biases
 
-	// context.Send(aggregationActor.(*actor.PID), gradientsMsg)
+	context.Send(aggregationActor.(*actor.PID), gradientsMsg)
 }
 
 func (n *MLP) Predict(x mat.Matrix) mat.Matrix {
