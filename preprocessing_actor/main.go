@@ -95,6 +95,7 @@ func (state *TrainingActor) Receive(context actor.Context) {
 		state.coordinationActor = context.Parent()
 		X, Y, _ := getTrainingDataFromProto(msg.Training)
 		Xv, Yv, _ := getTrainingDataFromProto(msg.Validation)
+		fmt.Println(X.Dims())
 		nn.StartTraining(X, Y, Xv, Yv, context, state.coordinationActor)
 	}
 }
