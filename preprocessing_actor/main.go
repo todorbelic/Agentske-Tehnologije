@@ -5,12 +5,14 @@ import (
 	messages "agentske/proto"
 	nn "agentske/training"
 	"fmt"
+	"log"
+	"net/http"
+	"time"
+
 	console "github.com/asynkron/goconsole"
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
 	"gonum.org/v1/gonum/mat"
-	"log"
-	"time"
 )
 
 type PreprocessingActor struct {
@@ -21,11 +23,21 @@ type TrainingActor struct {
 	coordinationActor *actor.PID
 }
 
+type ValidationActor struct {
+	coordinationActor *actor.PID
+}
+
 type CoordinationActor struct {
 	trainingActor      *actor.PID
 	preprocessingActor *actor.PID
 	validationActor    *actor.PID
 	aggregationActor   *actor.PID
+}
+
+// GET /evaluate
+func callEvaluate(w http.ResponseWriter, r *http.Request) {
+	// todo send evaluating actor message - acts
+	fmt.Fprintln(w, "Evaluating actr called")
 }
 
 func newCoordinationActor() actor.Actor {
@@ -38,6 +50,10 @@ func newPreprocessingActor() actor.Actor {
 
 func newTrainingActor() actor.Actor {
 	return &TrainingActor{}
+}
+
+func newValidationActor() actor.Actor {
+	return &ValidationActor{}
 }
 
 func (state *CoordinationActor) Receive(context actor.Context) {
@@ -81,6 +97,15 @@ func (state *TrainingActor) Receive(context actor.Context) {
 		Xv, Yv, _ := getTrainingDataFromProto(msg.Validation)
 		nn.StartTraining(X, Y, Xv, Yv, context, state.coordinationActor)
 	}
+}
+
+func (state *ValidationActor) Receive(context actor.Context) {
+	// switch msg := context.Message().(type) {
+	// case *messages.DataSets:
+	// 	log.Println("Validation actor started: ", context.Self().String())
+	// 	Xv, Yv, _ := getTrainingDataFromProto(msg.Validation)
+	// 	nn.getF1Score(n, Xv, Yv)
+	// }
 }
 
 func ConvertToProtoData(data preprocessing.Data) (*messages.Data, error) {
@@ -139,7 +164,7 @@ func main() {
 	props := actor.PropsFromProducer(newCoordinationActor, actor.WithSupervisor(supervisor))
 
 	pid := rootContext.Spawn(props)
-	spawnResponse, err := r.SpawnNamed("127.0.0.1:8091", "AggregationActor", "AggregationActor", time.Second)
+	spawnResponse, err := r.SpawnNamed("127.0.0.1:8091", "AggregationActor", "AggregationActor", time.Second*2)
 
 	if err != nil {
 		panic(err)
@@ -148,5 +173,16 @@ func main() {
 
 	// get spawned PID
 	rootContext.Send(pid, &messages.ActivateLocalTraining{Sender: pid, AggregationActor: spawnResponse.Pid})
+
+	// Start the HTTP server
+	http.HandleFunc("/evaluate", callEvaluate)
+	go func() {
+		fmt.Println("HTTP server listening on port 8086...")
+		err := http.ListenAndServe(":8086", nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
 	console.ReadLine()
+
 }
