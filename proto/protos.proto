@@ -12,26 +12,30 @@ message Histogram {
     repeated double values = 1;
 }
 
-message DataSets{
+message TrainingDataSets{
     Data Training = 1;
     Data Validation = 2;
 }
 
-message ActivatePreproc{
-    actor.PID Sender = 1; 
+message EvaluationDataSets {
+    Data Validation = 1;
 }
 
+message ActivatePreprocTraining{}
+
+message ActivatePreprocEvaluation{}
 
 message ActivateLocalTraining{
-    actor.PID Sender = 1;
-    actor.PID AggregationActor = 2;
+    actor.PID AggregationActor = 1;
 }
 
-message GetTrainingActor{
+message ActivateEvaluation {
+    actor.PID AggregationActor = 1;
 }
 
-message GetGlobalWeights{
-}
+message GetTrainingActor{}
+
+message GetGlobalWeights{}
 
 message GlobalWeights{
     repeated Biases biases = 1;
@@ -50,15 +54,22 @@ message Weights{
     repeated double data = 1;
 }
 
-message GetAggregationActor {
+message GetAggregationActor {}
 
-}
+message GetEvaluationActor {}
 
 message GradientUpdate {
     repeated WeightLayer weights = 1;
+    int32 batch_size = 2;
 }
 
 message WeightLayer {
     repeated double weights = 1;
     repeated double biases = 2;
 }
+
+message TrainingFinished {}
+
+message PreprocessingFinished {}
+
+message EvaluationFinished {}

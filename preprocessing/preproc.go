@@ -335,14 +335,14 @@ func splitData(data Data, splitRatio float64, seed int) (Data, Data) {
 	return trainData, valData
 }
 
-func PreprocessImages() (Data, Data) {
-	normalLungsImgLocation := "data\\normal_read"
+func PreprocessImagesForTraining() (Data, Data) {
+	normalLungsImgLocation := "data\\normal_training"
 	normalLungsImages, normalLabels, err := readImages(normalLungsImgLocation, 0.0)
 	if err != nil {
 		fmt.Println("Error loading normal lung images:", err)
 	}
 
-	covidLungsImgLocation := "data\\covid_read"
+	covidLungsImgLocation := "data\\covid_training"
 	covidLungsImages, covidLabels, err := readImages(covidLungsImgLocation, 1.0)
 	if err != nil {
 		fmt.Println("Error loading covid lung images: ", err)
@@ -355,70 +355,30 @@ func PreprocessImages() (Data, Data) {
 		fmt.Println("Error preprocessing images: ", err)
 	}
 
-	trainData, validationData := splitData(*preprocessedAllImages, 0.7, 42)
-
-	fmt.Println(len(trainData.Histograms))
-	fmt.Println(len(validationData.Histograms))
+	trainData, validationData := splitData(*preprocessedAllImages, 0.8, 42)
 
 	return trainData, validationData
 }
 
-//func main() {
-//	normalLungsImgLocation := "data\\normal"
-//	normalLungsImages, normalLabels, err := readImages(normalLungsImgLocation, 0.0)
-//	if err != nil {
-//		fmt.Println("Error loading normal lung images:", err)
-//		return
-//	}
-//
-//	covidLungsImgLocation := "data\\covid"
-//	covidLungsImages, covidLabels, err := readImages(covidLungsImgLocation, 1.0)
-//	if err != nil {
-//		fmt.Println("Error loading covid lung images: ", err)
-//		return
-//	}
-//
-//	allImages, allLabels := append(normalLungsImages, covidLungsImages...), append(normalLabels, covidLabels...)
-//
-//	preprocessedAllImages, err := LBPHistograms(allImages, allLabels)
-//	if err != nil {
-//		fmt.Println("Error preprocessing images: ", err)
-//		return
-//	}
-//
-//	trainData, validationData := splitData(*preprocessedAllImages, 0.7, 42)
-//
-//	fmt.Println(len(trainData.Histograms[0]))
-//	fmt.Println(len(validationData.Histograms))
-//
-//	con := nn.Config{
-//		Epochs:    25,
-//		Eta:       0.3,
-//		BatchSize: 32,
-//	}
-//
-//	arch := []int{len(trainData.Histograms[0]), 15, 8, 1}
-//	n := nn.New(con, arch...)
-//
-//	rows, cols := len(trainData.Histograms), len(trainData.Histograms[0])
-//	data := make([]float64, rows*cols)
-//	for i, row := range trainData.Histograms {
-//		copy(data[i*cols:(i+1)*cols], row)
-//	}
-//	dense := mat.NewDense(rows, cols, data)
-//	denseY := mat.NewDense(rows, 1, trainData.Labels)
-//
-//	dataev := make([]float64, len(validationData.Histograms)*cols)
-//	for i, row := range validationData.Histograms {
-//		copy(dataev[i*cols:(i+1)*cols], row)
-//	}
-//	denseev := mat.NewDense(len(validationData.Histograms), cols, dataev)
-//	denseYev := mat.NewDense(len(validationData.Histograms), 1, validationData.Labels)
-//
-//	n.Train(dense, denseY)
-//
-//	accuracy := n.Evaluate(denseev, denseYev)
-//
-//	fmt.Printf("accuracy = %0.1f%%\n", accuracy)
-//
-//}
+func PreprocessImagesForEvaluation() Data {
+	normalLungsImgLocation := "data\\normal_eval"
+	normalLungsImages, normalLabels, err := readImages(normalLungsImgLocation, 0.0)
+	if err != nil {
+		fmt.Println("Error loading normal lung images:", err)
+	}
+
+	covidLungsImgLocation := "data\\covid_eval"
+	covidLungsImages, covidLabels, err := readImages(covidLungsImgLocation, 1.0)
+	if err != nil {
+		fmt.Println("Error loading covid lung images: ", err)
+	}
+
+	allImages, allLabels := append(normalLungsImages, covidLungsImages...), append(normalLabels, covidLabels...)
+
+	preprocessedAllImages, err := LBPHistograms(allImages, allLabels)
+	if err != nil {
+		fmt.Println("Error preprocessing images: ", err)
+	}
+
+	return *preprocessedAllImages
+}
